@@ -1,0 +1,15 @@
+
+---
+- hosts: all
+  gather_facts: False
+
+  tasks:
+  - name: Run exec command
+    asa_command:
+      commands: '{{ command }}'
+      provider: '{{ cli }}'
+    register: result
+  
+  - debug:
+      var: result.stdout_lines
+...
