@@ -1,0 +1,38 @@
+
+---
+- hosts: all
+  gather_facts: False
+
+  tasks:
+  - name: Enumerate interface names
+    asa_command:
+      commands: show run | in ^ *nameif
+      provider: '{{ cli }}'
+    register: results
+  
+  - name: Parse interface names and assign to a variable
+    set_fact:
+      interface_names: '{{ results.stdout_lines[0] | map("regex_replace", "\s*nameif\s+", "") | list }}'
+  
+  - name: Run packet-tracer
+    asa_command:
+      commands:
+        - packet-tracer input {{ item }} {{ protocol }} {{ src_address }} 33000 {{ dst_address }} {{ dst_port }} detailed
+      provider: '{{ cli }}'
+    with_items: '{{ interface_names }}'
+    register: results
+
+  - set_fact:
+      cmds: '{{ results.results | map(attribute="invocation") | map(attribute="module_args") | map(attribute="commands") | map(attribute=0) | list }}'
+      stdout: '{{ results.results | map(attribute="stdout_lines") | list }}'
+
+  - name: Print results
+    debug:
+      msg: [
+        '{{ item[0] }}',
+        '{{ item[1][0] }}',
+      ]
+    loop: "{{ cmds | zip(stdout) | list }}"
+    loop_control:
+      label: "{{ item[1][0][-2] }}"
+...
