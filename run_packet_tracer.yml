@@ -1,0 +1,47 @@
+
+---
+- hosts: all
+  gather_facts: False
+
+  tasks:
+  - name: Determine ingress interface
+    asa_command:
+      commands: show route {{ src_address }} | include ^ +\*
+      provider: '{{ cli }}'
+    register: results
+
+  - name: Parse interface names and assign to a variable
+    set_fact:
+      nameif: '{{ results.stdout | map("regex_replace", ".*\,\svia\s", "") | list | join("") }}'
+    when: results.stdout[0] != ''
+  
+  - name: Determine ingress interface if first method fails
+    asa_command:
+      commands: show route | include 0.0.0.0 0.0.0.0.*\[1\/0\]
+      provider: '{{ cli }}'
+    register: results
+    when: nameif is not defined
+
+  - name: Parse interface names and assign to a variable
+    set_fact:
+      nameif: '{{ results.stdout | map("regex_replace", ".*\,\s", "") | list | join("") }}'
+    when: nameif is not defined
+
+  - name: Save command to a variable
+    set_fact:
+      cmd: packet-tracer input {{ nameif }} {{ protocol }} {{ src_address }} 33000 {{ dst_address }} {{ dst_port }} detailed
+
+  - name: Run packet-tracer
+    asa_command:
+      commands: '{{ cmd }}'
+      provider: '{{ cli }}'
+    register: results
+
+  - name: Print results
+    debug:
+      msg: [
+        '{{ cmd }}',
+        '{{ results.stdout_lines[0][-1] }}',
+        '{{ results.stdout_lines }}',
+      ]
+...
